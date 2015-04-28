@@ -12,7 +12,7 @@
  * @link     http://docwatson.net
  */
 
-
+// see https://github.com/wufoo/Wufoo-PHP-API-Wrapper
 include 'vendor/WufooApiWrapper.php';
 
 /**
@@ -29,7 +29,7 @@ class Wufoo_Ajax_Helper {
   private $_wufoo_id;
   private $_hashes;
   private $_hash_labels;
-  private $_version = '1.0.0';
+  private $_version = '1.0.1';
 
 
 	/**
@@ -46,11 +46,15 @@ class Wufoo_Ajax_Helper {
       $this->_hash_labels   = unserialize(get_option('wa_wufoo_hash_labels'));
 
   		/* Register action hooks. */
-      add_action( 'admin_enqueue_scripts', array( $this, 'action_admin_enqueue_scripts' ) );
-      add_action( 'admin_menu', array( $this, 'action_admin_menu' ) );
       add_action( 'wp_enqueue_scripts', array( $this, 'action_wp_enqueue_scripts' ), 1000 );
       add_action( 'wp_ajax_wufoo_post', array( $this, 'action_wp_ajax_wufoo_post' ));
       add_action( 'wp_ajax_nopriv_wufoo_post', array( $this, 'action_wp_ajax_wufoo_post' ));
+
+      //enable admin functions only if the user is an administrator
+      if ( current_user_can('install_plugins') ) {
+        add_action( 'admin_enqueue_scripts', array( $this, 'action_admin_enqueue_scripts' ) );
+        add_action( 'admin_menu', array( $this, 'action_admin_menu' ) );
+      }
   	}
 
 
@@ -117,6 +121,9 @@ class Wufoo_Ajax_Helper {
 	 * @return void
 	 */
   	public function admin_panel() {
+      if ( !current_user_can('install_plugins') ) {
+        die('You do not have the correct permissions to use this page.');
+      }
 
   		/* Update options if necessary. */
   		if ( count( $_POST ) > 0 ) {
@@ -127,6 +134,7 @@ class Wufoo_Ajax_Helper {
         update_option( 'wa_wufoo_hash_labels', serialize(array_filter($_POST["wa_wufoo_hash_label"])));
   		}
 
+      //set variables for the admin panel 
       $wa_wufoo_api_key = $this->_api_key;
       $wa_wufoo_id = $this->_wufoo_id;
       $wa_wufoo_hashes = $this->_hashes;
@@ -136,20 +144,25 @@ class Wufoo_Ajax_Helper {
   	}
 
     /**
-     * Action hook to process forms form
+     * Action hook to process forms from AJAX request
      *
      * @access public
      * @return void
      */
     public function action_wp_ajax_wufoo_post() {
+      //look up the index of the hash of the form we're processing
       $index = $this->get_hash_by_label($_POST["form_type"]);
 
+      //sanitize the data using wufoo's helpers
       $data       = $this->_wufoo_sanitize($_POST['fields']);
+      //set the hash
       $hash       = $this->_hashes[$index];
+      //create an API wrapper object
       $api        = new WufooApiWrapper($this->_api_key, $this->_wufoo_id);
-
+      //make the API call
       $response   = $api->entryPost($hash, $data);
 
+      //record the response in JSON
       header('Content-Type: application/json');
       echo json_encode($response);
       wp_die();
@@ -171,13 +184,17 @@ class Wufoo_Ajax_Helper {
     	);
     }
 
+    /*
+    * Function to easily return an index of the hash associated with a label
+    *
+    * @param  {string} - $label
+    *
+    * @access public
+    * @return {int} - $index
+     */
     public function get_hash_by_label($label) {
       $index = array_search($label, $this->_hash_labels);
 
       return $index;
     }
-
-
-
-
 }
