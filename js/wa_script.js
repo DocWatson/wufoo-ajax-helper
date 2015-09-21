@@ -20,8 +20,20 @@ jQuery('.wufoo-form').on('submit', function(e){
     dataType : 'json',
     success  : function(response) {
       console.log(response);
+      if (response.Success !== 1) {
+        // we have a field error, so loop through the errors
+        var errors = response.FieldErrors;
+        jQuery.each( errors, function(){
+          // in case of multiple errors let's log them with their fieldID's
+          console.log(this.ID + ": " + this.ErrorText);
+        });
+      } else {
+        // we're good
+        console.log("Post successful");
+      }
     },
     error : function(jqXHR, textStatus, errorThrown) {
+      // HTML error in communicating with Wufoo
       console.error(errorThrown);
     }
   });
